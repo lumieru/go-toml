@@ -626,3 +626,32 @@ func TestDoubleEqual(t *testing.T) {
 		t.Error("Bad error message:", err.Error())
 	}
 }
+
+func TestGroupArrayReassign(t *testing.T) {
+	_, err := Load("[hello]\n[[hello]]")
+	if err.Error() != "(2, 3): key \"hello\" is already assigned and not of type group array" {
+		t.Error("Bad error message:", err.Error())
+	}
+}
+
+func TestInvalidFloatParsing(t *testing.T) {
+	_, err := Load("a=1e_2")
+	if err.Error() != "(1, 3): invalid use of _ in number" {
+		t.Error("Bad error message:", err.Error())
+	}
+
+	_, err = Load("a=1e2_")
+	if err.Error() != "(1, 3): invalid use of _ in number" {
+		t.Error("Bad error message:", err.Error())
+	}
+
+	_, err = Load("a=1__2")
+	if err.Error() != "(1, 3): invalid use of _ in number" {
+		t.Error("Bad error message:", err.Error())
+	}
+
+	_, err = Load("a=_1_2")
+	if err.Error() != "(1, 3): cannot start number with underscore" {
+		t.Error("Bad error message:", err.Error())
+	}
+}

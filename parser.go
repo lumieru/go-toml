@@ -5,6 +5,7 @@ package toml
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -107,7 +108,7 @@ func (p *tomlParser) parseGroupArray() tomlParserStateFn {
 	var array []*TomlTree
 	if destTree == nil {
 		array = make([]*TomlTree, 0)
-	} else if destTree.([]*TomlTree) != nil {
+	} else if target, ok := destTree.([]*TomlTree); ok && target != nil {
 		array = destTree.([]*TomlTree)
 	} else {
 		p.raiseError(key, "key %s is already assigned and not of type group array", key)
@@ -211,6 +212,16 @@ func (p *tomlParser) parseAssign() tomlParserStateFn {
 	return p.parseStart
 }
 
+var numberUnderscoreInvalidRegexp *regexp.Regexp
+
+func cleanupNumberToken(value string) (string, error) {
+	if numberUnderscoreInvalidRegexp.MatchString(value) {
+		return "", fmt.Errorf("invalid use of _ in number")
+	}
+	cleanedVal := strings.Replace(value, "_", "", -1)
+	return cleanedVal, nil
+}
+
 func (p *tomlParser) parseRvalue() interface{} {
 	tok := p.getToken()
 	if tok == nil || tok.typ == tokenEOF {
@@ -225,14 +236,20 @@ func (p *tomlParser) parseRvalue() interface{} {
 	case tokenFalse:
 		return false
 	case tokenInteger:
-		cleanedVal := strings.Replace(tok.val, "_", "", -1)
+		cleanedVal, err := cleanupNumberToken(tok.val)
+		if err != nil {
+			p.raiseError(tok, "%s", err)
+		}
 		val, err := strconv.ParseInt(cleanedVal, 10, 64)
 		if err != nil {
 			p.raiseError(tok, "%s", err)
 		}
 		return val
 	case tokenFloat:
-		cleanedVal := strings.Replace(tok.val, "_", "", -1)
+		cleanedVal, err := cleanupNumberToken(tok.val)
+		if err != nil {
+			p.raiseError(tok, "%s", err)
+		}
 		val, err := strconv.ParseFloat(cleanedVal, 64)
 		if err != nil {
 			p.raiseError(tok, "%s", err)
@@ -360,4 +377,8 @@ func parseToml(flow chan token) *TomlTree {
 	}
 	parser.run()
 	return result
+}
+
+func init() {
+	numberUnderscoreInvalidRegexp = regexp.MustCompile(`([^\d]_|_[^\d]|_$|^_)`)
 }
